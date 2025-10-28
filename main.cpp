@@ -4,6 +4,9 @@
 #include <string> 
 #include <vector>
 #include <algorithm> //for std::remove
+#define RED "\033[31m"
+#define RESET "\033[0m"
+#define YELLOW  "\033[33m"
 int main(int argc,char* argv[]){
     std::vector<std::string> patterns;
     std::vector<std::string> files;
@@ -35,7 +38,9 @@ int main(int argc,char* argv[]){
     for (const auto& pattern:patterns){
         std::vector<std::string> result;
         std::vector<std::string> cant_open_files;
-        std::cout<<"----------Searching for: "<<pattern<<"----------"<<std::endl;
+        std::cout<<RED<< "\n==========================================\n";
+        std::cout << "🔍 Searching for pattern: \"" << pattern << "\"\n";
+        std::cout << "==========================================\n"<<RESET<<std::endl;;
         unsigned int match_for_curr_pattern=0;
         for (const auto& file:files){
             std::string line;
@@ -48,11 +53,13 @@ int main(int argc,char* argv[]){
                 }
                 continue;
             }
-            result.push_back("\nMatches inside - " + file+":\n");
+            result.push_back("┌───────────────────────────────┐");
+            result.push_back("│ File: " + file);
+            result.push_back("└───────────────────────────────┘\n");
             unsigned int match_in_curr_file=0;
             while (std::getline(opened_file,line)){
                 if (line.find(pattern)!=std::string::npos){
-                    result.push_back("  "+line);
+                    result.push_back("   → " +line);
                     match_in_curr_file+=1;
                     match_for_curr_pattern+=1;
                 }
@@ -63,7 +70,7 @@ int main(int argc,char* argv[]){
         for (const auto& file:cant_open_files){
             files.erase(std::remove(files.begin(), files.end(),file), files.end());//remove the file which can't be opened so during next parameter iteration can't be bother to open
         }
-        std::cout<<"\n TOTAL COUNT OF "<<pattern<<"="<<match_for_curr_pattern<<std::endl;
+        std::cout<<YELLOW<<"\nTOTAL COUNT OF "<<pattern<<"="<<match_for_curr_pattern<<"\n"<<RESET<<std::endl;
         for (const auto& matched_line:result){
             std::cout<<matched_line<<std::endl;
         }
