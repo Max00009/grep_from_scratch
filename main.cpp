@@ -7,7 +7,6 @@
 int main(int argc,char* argv[]){
     std::vector<std::string> patterns;
     std::vector<std::string> files;
-    std::vector<std::string> cant_open_files; 
     std::ifstream file(argv[2]);
 
     //handles argument error
@@ -35,6 +34,7 @@ int main(int argc,char* argv[]){
     }
     for (const auto& pattern:patterns){
         std::vector<std::string> result;
+        std::vector<std::string> cant_open_files;
         std::cout<<"----------Searching for: "<<pattern<<"----------"<<std::endl;
         unsigned int match_for_curr_pattern=0;
         for (const auto& file:files){
@@ -43,7 +43,7 @@ int main(int argc,char* argv[]){
             if (!opened_file){
                 std::cout<<"Error:Failed to open file "<<file<<".\n";
                 cant_open_files.push_back(file);
-                if(files.size()>1){
+                if(file!=files.back()){//checks if there is files available after this file
                     std::cout<<"Trying next file."<<std::endl;
                 }
                 continue;
@@ -60,7 +60,9 @@ int main(int argc,char* argv[]){
             result.push_back("\n("+pattern+ " appeared " + std::to_string(match_in_curr_file) + " times in " + file +")\n\n");
             opened_file.close();
         }
-        files.erase(std::remove(files.begin(), files.end(), file), files.end());//remove the file which can't be opened so during next parameter iteration can't be bother to open
+        for (const auto& file:cant_open_files){
+            files.erase(std::remove(files.begin(), files.end(),file), files.end());//remove the file which can't be opened so during next parameter iteration can't be bother to open
+        }
         std::cout<<"\n TOTAL COUNT OF "<<pattern<<"="<<match_for_curr_pattern<<std::endl;
         for (const auto& matched_line:result){
             std::cout<<matched_line<<std::endl;
