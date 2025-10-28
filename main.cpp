@@ -1,4 +1,4 @@
-//reminder:multithreading,highlight,case insensitive,tree
+//reminder:multithreading,highlight,case insensitive,tree,strict search
 #include <iostream>
 #include <fstream> //to read from file
 #include <string> 
@@ -11,7 +11,7 @@ int main(int argc,char* argv[]){
     std::ifstream file(argv[2]);
 
     //handles argument error
-    if (argc<4){    //minimum 4=program name+patterns+-f+files
+    if (argc<4){    //minimum 4 arguments =program name + pattern(s) + --f + file(s)
         std::cerr<<"pattern and filename in proper format must be provided.Usage: "<<argv[0]<<"<pattern(s)> --f <filename(s)>"<<std::endl;
         return 1;
     }
