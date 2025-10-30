@@ -1,4 +1,4 @@
-//reminder:multithreading,highlight,case insensitive,strict search
+//reminder:highlight,case insensitive,strict search,other flags,codecrafters list,video
 #include <iostream>
 #include <fstream> //to read from file
 #include <string> 
@@ -59,7 +59,7 @@ void collecting_pattern_from_queue(std::queue<std::string>& pattern_queue,const 
 int main(int argc,char* argv[]){
     std::vector<std::string> files;
     std::queue<std::string> pattern_queue;
-    const unsigned int MAX_THREADS=4;
+    const unsigned int MAX_THREADS=std::min(4u, std::max(1u, std::thread::hardware_concurrency()));//thread count depends on cpu core but within 1 to 4.later i will make thread count configurable via command-line flag
     std::vector<std::thread> threads;
 
     //handles argument error
