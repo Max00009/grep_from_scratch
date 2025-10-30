@@ -3,10 +3,11 @@
 #include <fstream> //to read from file
 #include <string> 
 #include <vector>
-#include <algorithm> //for std::remove
+#include <algorithm> //for std::remove,std::find
 #include <mutex> //for mutual exclusion to prevent race condition
 #include <queue>
 #include <thread>
+#include <array>
 #define RED "\033[31m"
 #define RESET "\033[0m"
 #define YELLOW  "\033[33m"
@@ -14,6 +15,10 @@
 std::mutex cout_mutex;
 std::mutex cerr_mutex;
 std::mutex pattern_queue_mutex;
+
+bool case_insensitive=false;
+bool highlight=true;
+bool strict_search=false;
 
 void search_pattern(std::string& pattern,const std::vector<std::string>& files){
     std::string result;
@@ -59,8 +64,12 @@ void collecting_pattern_from_queue(std::queue<std::string>& pattern_queue,const 
 int main(int argc,char* argv[]){
     std::vector<std::string> files;
     std::queue<std::string> pattern_queue;
+    bool is_thread_set_by_user=false;
+    unsigned int thread_set_by_user;
+    unsigned int num_threads;
     const unsigned int MAX_THREADS=std::min(4u, std::max(1u, std::thread::hardware_concurrency()));//thread count depends on cpu core but within 1 to 4.later i will make thread count configurable via command-line flag
     std::vector<std::thread> threads;
+    std::array<std::string,4> flags={"--t","--i","--nh","--s"};//t=thread,i=case insensitive,nh=highlight off,s=strict search
 
     //handles argument error
     if (argc<4){    //minimum 4 arguments =program name + pattern(s) + --f + file(s)
@@ -71,18 +80,40 @@ int main(int argc,char* argv[]){
 
     //collects patterns and files name in respective container
     bool after_f=false;
+    bool outside_file_scope=false;
     for (size_t i=1;i<argc;i++){
         std::string arg=argv[i];
-        if (arg=="--f"){
-            after_f=true;
-        }else if(!after_f){
+        if(!after_f){
             pattern_queue.push(arg);
+        }else if(arg=="--f"){
+            after_f=true;
         }else{
-            std::ifstream valid(arg);//only pushes valid files into files vector so we don't have to filter later
-            if (valid){
-                files.push_back(arg);
+            if(std::find(flags.begin(),flags.end(),arg)==flags.end() && (!outside_file_scope)){
+                std::ifstream valid(arg);//only pushes valid files into files vector so we don't have to filter later
+                if (valid){
+                    files.push_back(arg);
+                }else{
+                    std::cerr<<"Error.Failed to open "<<arg<<std::endl;
+                }
             }else{
-                std::cerr<<"Error.Failed to open "<<arg<<std::endl;
+                outside_file_scope=true;
+                if (arg=="--t"){
+                    if(i+1<argc){
+                        try{
+                            is_thread_set_by_user=true;
+                            thread_set_by_user=std::stoul(argv[++i]);
+                        }catch(const std::exception& e){
+                            std::cerr << "Error: Invalid thread count after --t flag." << std::endl;
+                            return 1;
+                        }
+                    }else{
+                        std::cerr << "Error: Missing value after --t flag." << std::endl;
+                        return 1;
+                    }
+                }
+                if (arg=="--i") case_insensitive=true ;
+                if (arg=="--nh") highlight=false;
+                if (arg=="--s") strict_search=true;
             }
         }
     }
@@ -91,9 +122,17 @@ int main(int argc,char* argv[]){
         std::cerr<<"Error.Minimum one pattern and one valid file is required."<<std::endl;
         return 1;
     }
-    //below block creates thread(maximum 4) that calls "collecting_patterns" func
+    //number of threads is decided by cpu core unless user provides it manually through --t flag.
+    //if user doesn't set --t manually then maximum thread created is 4.mimimum 1.totally depends on pattern_queue size and cpu core.
+    //when user set thread by --t maximum thread is 10 to prevent overloading.
+    //no matter what thread number never exceeds patten=rn_queue size to prevent infinte thread creating and returning loop(crashed my program.took 1 hour to detect).
+    if(is_thread_set_by_user){
+        num_threads=std::min(std::min(10u,thread_set_by_user), static_cast<unsigned int>(pattern_queue.size()));
+    }else{
+        num_threads=std::min(MAX_THREADS, static_cast<unsigned int>(pattern_queue.size()));
+    }
+    //below block creates threads according to num_threads that calls "collecting_patterns" func
     //and adds that thread inside threads vector
-    size_t num_threads=std::min(MAX_THREADS, static_cast<unsigned int>(pattern_queue.size()));
     for (size_t i=0;i<num_threads;i++){
         threads.emplace_back(collecting_pattern_from_queue,std::ref(pattern_queue),std::cref(files));
     }
