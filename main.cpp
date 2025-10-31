@@ -1,4 +1,4 @@
-//reminder:highlight,case insensitive,strict search,other flags,less,pipe,codecrafters list,video
+//reminder:case insensitive,strict search,other flags,less,pipe,codecrafters list,video
 #include <iostream>
 #include <fstream> //to read from file
 #include <string> 
@@ -11,6 +11,7 @@
 #define RED "\033[31m"
 #define RESET "\033[0m"
 #define YELLOW  "\033[33m"
+#define LIGHT_CYAN    "\033[96m"
 //necessary mutex for locking shared data among threads
 std::mutex cout_mutex;
 std::mutex cerr_mutex;
@@ -19,6 +20,23 @@ std::mutex pattern_queue_mutex;
 bool case_insensitive=false;
 bool highlight=true;
 bool strict_search=false;
+
+std::string highlight_pattern(std::string& line,std::string& pattern){
+    std::string highlighted_line;
+    size_t curr_pos=0;
+    while (true){
+        size_t found_pos=line.find(pattern,curr_pos);//first find the index of first match from the current position
+        if (found_pos==std::string::npos){
+            highlighted_line.append(line.substr(curr_pos));
+            break;
+        }
+        highlighted_line.append(line.substr(curr_pos,found_pos-curr_pos));//add all text till the match
+        highlighted_line.append(LIGHT_CYAN + pattern + RESET);//add the match i.e. the pattern
+        curr_pos+=found_pos+pattern.size();//then move the current position index just after the end of pattern
+        //and repeat untill there is no more match
+    }
+    return highlighted_line;
+}
 
 void search_pattern(std::string& pattern,const std::vector<std::string>& files){
     std::string result;
@@ -36,6 +54,7 @@ void search_pattern(std::string& pattern,const std::vector<std::string>& files){
                     result.append("└───────────────────────────────┘\n");
                     file_name_header_alredy_added=true;
                 }
+                if (highlight) line=highlight_pattern(line,pattern);//by default highlight always on unless user provides --nh flag
                 result.append("   → " +line+"\n");
                 match_in_curr_file+=1;
                 match_for_curr_pattern+=1;
