@@ -1,4 +1,4 @@
-//reminder:highlight,case insensitive,strict search,other flags,codecrafters list,video
+//reminder:highlight,case insensitive,strict search,other flags,less,pipe,codecrafters list,video
 #include <iostream>
 #include <fstream> //to read from file
 #include <string> 
@@ -27,17 +27,21 @@ void search_pattern(std::string& pattern,const std::vector<std::string>& files){
         unsigned int match_in_curr_file=0;
         std::string line;
         std::ifstream opened_file(file);//i had to change name to opened_file cause same "file" was causing issue
-        result.append("┌───────────────────────────────┐\n");
-        result.append("│ File: " + file+"\n");
-        result.append("└───────────────────────────────┘\n");
+        bool file_name_header_alredy_added=false;
         while (std::getline(opened_file,line)){
             if (line.find(pattern)!=std::string::npos){
+                if (!file_name_header_alredy_added){
+                    result.append("┌───────────────────────────────┐\n");
+                    result.append("│ File: " + file+"\n");
+                    result.append("└───────────────────────────────┘\n");
+                    file_name_header_alredy_added=true;
+                }
                 result.append("   → " +line+"\n");
                 match_in_curr_file+=1;
                 match_for_curr_pattern+=1;
             }
         }
-        result.append("\n("+pattern+ " appeared " + std::to_string(match_in_curr_file) + " times in " + file +")\n\n");
+        if (match_in_curr_file!=0) result.append("\n("+pattern+ " appeared " + std::to_string(match_in_curr_file) + " times in " + file +")\n\n");
         opened_file.close();
     }
     std::lock_guard<std::mutex> lock(cout_mutex);
@@ -83,10 +87,10 @@ int main(int argc,char* argv[]){
     bool outside_file_scope=false;
     for (size_t i=1;i<argc;i++){
         std::string arg=argv[i];
-        if(!after_f){
-            pattern_queue.push(arg);
-        }else if(arg=="--f"){
+        if(arg=="--f"){
             after_f=true;
+        }else if(!after_f){
+            pattern_queue.push(arg);
         }else{
             if(std::find(flags.begin(),flags.end(),arg)==flags.end() && (!outside_file_scope)){
                 std::ifstream valid(arg);//only pushes valid files into files vector so we don't have to filter later
@@ -118,6 +122,9 @@ int main(int argc,char* argv[]){
         }
     }
     //checks if atleast one pattern and one file is provided
+    if (files.empty()){
+        std::cerr<<"yeah"<<std::endl;   //for debugging
+    }
     if (pattern_queue.empty() ||files.empty()){
         std::cerr<<"Error.Minimum one pattern and one valid file is required."<<std::endl;
         return 1;
