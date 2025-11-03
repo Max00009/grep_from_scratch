@@ -1,4 +1,4 @@
-//reminder:strict search,other flags,less,pipe,codecrafters list,video,adjustable size
+//reminder:codecrafters list,video,regex,less,pipe,adjustable size
 #include <iostream>
 #include <fstream> //to read from file
 #include <string> 
@@ -9,6 +9,7 @@
 #include <thread>
 #include <array>
 #include <cctype> //for std::tolower which is needed for for case insensitive search
+#include <regex>
 #define RED "\033[31m"
 #define RESET "\033[0m"
 #define YELLOW "\033[33m"
@@ -21,6 +22,7 @@ std::mutex pattern_queue_mutex;
 bool case_insensitive=false;
 bool highlight=true;
 bool strict_search=false;
+
 std::string convert_to_lower(std::string& string){
     std::string lower;
     lower.reserve(string.size());
@@ -29,64 +31,71 @@ std::string convert_to_lower(std::string& string){
     }
     return lower;
 }
-
-std::string highlight_pattern(std::string& line,std::string& pattern){
+std::string highlight_pattern(std::string& line,std::regex& pattern){
     std::string highlighted_line;
-    size_t curr_pos=0;
-    std::string lower_line=line;
-    std::string lower_pattern=pattern;
-    if (case_insensitive){
-        //these are just for comparing. we will append the original line as it is just highlighted
-        lower_line=convert_to_lower(line);
-        lower_pattern=convert_to_lower(pattern);
-    }
-    while (true){
-        size_t found_pos=lower_line.find(lower_pattern,curr_pos);//first find the index of first match from the current position
-        if (found_pos==std::string::npos){
-            highlighted_line.append(line.substr(curr_pos));
-            break;
+    std::string::const_iterator curr_pos=line.cbegin();
+    for (std::sregex_iterator it(line.begin(),line.end(),pattern);it!=std::sregex_iterator();++it){
+        std::smatch match=*it;
+        bool is_whole_word = true;
+        if (match[0].first != line.begin()) {
+            char before = *(match[0].first - 1);
+            if (std::isalnum(static_cast<unsigned char>(before)) || before == '_' || before == '-') {
+                is_whole_word = false;
+            }
         }
-        highlighted_line.append(line.substr(curr_pos,found_pos-curr_pos));//add all text till the match
-        highlighted_line.append(LIGHT_CYAN + line.substr(found_pos, pattern.size()) + RESET);//add the matched part BUT THE UNCHANGED VERSION.NOT THE LOWER CASED
-        curr_pos+=found_pos+pattern.size();//then move the current position index just after the end of pattern
-        //and repeat untill there is no more match
+        if (match[0].second != line.end()) {
+            char after = *(match[0].second);
+            if (std::isalnum(static_cast<unsigned char>(after)) || after == '_' || after == '-') {
+                is_whole_word = false;
+            }
+        }
+        if (strict_search&&(!is_whole_word)) continue;
+        highlighted_line.append(curr_pos,match[0].first);//Append everything between starting_point and the beginning of this new match
+        highlighted_line.append(LIGHT_CYAN);
+        highlighted_line.append(match[0].first,match[0].second);//append match
+        highlighted_line.append(RESET);
+        curr_pos=match[0].second;//set index to next letter after match 
     }
+    highlighted_line.append(std::string(curr_pos, line.cend()));//append remaining text after last match
+
+
     return highlighted_line;
 }
 
 void search_pattern(std::string& pattern,const std::vector<std::string>& files){
     std::string result;
     unsigned int match_for_curr_pattern=0;
-    std::string lowered_pattern=convert_to_lower(pattern);
     for(const auto& file:files){
         unsigned int match_in_curr_file=0;
-        std::string line;
+        std::string line;//to store each line from file by std::getline
         std::ifstream opened_file(file);//i had to change name to opened_file cause same "file" was causing issue
         bool file_name_header_alredy_added=false;
         while (std::getline(opened_file,line)){
-            std::string target_pattern=pattern;
-            std::string target_line=line;
-            bool line_has_a_match=false;
-            size_t pos=0;
-            if (case_insensitive){
-                //these are for comparing in case insensitive 
-                target_pattern=lowered_pattern;//we converted pattern before so it doesn't need to be transformed in every loop
-                target_line=convert_to_lower(line);//it needs to be transformed inside cause it's changing inside for loop
+            bool line_has_match=false;
+            //in next line the ternary conditional operator decides whether the pattern is case-sensitive or insensitive
+            std::regex regex_pattern(pattern, case_insensitive ? std::regex_constants::icase : std::regex_constants::ECMAScript);
+            if (regex_search(line,regex_pattern)){
+                //below lines are to split the line in words and collecting those words in words_in_current_line
+                std::regex word_regex(R"([A-Za-z0-9_\-\.@#!?:;,/~<>{}]+)");//word pattern.had to make it raw R to escape "-"
+                std::sregex_token_iterator it(line.begin(),line.end(),word_regex);
+                std::sregex_token_iterator end;
+                std::vector<std::string> words_in_current_line(it,end);
+                for (const auto& word:words_in_current_line){
+                    if (std::regex_match(word,regex_pattern)||(std::regex_search(word,regex_pattern)&&(!strict_search))){
+                        if (!line_has_match) line_has_match=true;
+                        match_in_curr_file+=1;
+                        match_for_curr_pattern+=1;
+                    }
+                }
             }
-            while((pos=target_line.find(target_pattern,pos))!=std::string::npos){
-                line_has_a_match=true;
-                match_in_curr_file+=1;
-                match_for_curr_pattern+=1;
-                pos+=target_pattern.size();
-            }
-            if (line_has_a_match){
+            if (line_has_match){
                 if (!file_name_header_alredy_added){
                     result.append("┌───────────────────────────────┐\n");
                     result.append("│ File: " + file+"\n");
                     result.append("└───────────────────────────────┘\n");
                     file_name_header_alredy_added=true;
                 }
-                if (highlight) line=highlight_pattern(line,pattern);//by default highlight always on unless user provides --nh flag
+                if (highlight) line=highlight_pattern(line,regex_pattern);//by default highlight always on unless user provides --nh flag
                 result.append("   → " +line+"\n");
             }
         }
