@@ -23,14 +23,6 @@ bool case_insensitive=false;
 bool highlight=true;
 bool strict_search=false;
 
-std::string convert_to_lower(std::string& string){
-    std::string lower;
-    lower.reserve(string.size());
-    for (char c:string){
-        lower.push_back(std::tolower(static_cast<unsigned char>(c)));
-    }
-    return lower;
-}
 std::string highlight_pattern(std::string& line,std::regex& pattern){
     std::string highlighted_line;
     std::string::const_iterator curr_pos=line.cbegin();
@@ -57,11 +49,8 @@ std::string highlight_pattern(std::string& line,std::regex& pattern){
         curr_pos=match[0].second;//set index to next letter after match 
     }
     highlighted_line.append(std::string(curr_pos, line.cend()));//append remaining text after last match
-
-
     return highlighted_line;
 }
-
 void search_pattern(std::string& pattern,const std::vector<std::string>& files){
     std::string result;
     unsigned int match_for_curr_pattern=0;
@@ -132,14 +121,6 @@ int main(int argc,char* argv[]){
     const unsigned int MAX_THREADS=std::min(4u, std::max(1u, std::thread::hardware_concurrency()));//thread count depends on cpu core but within 1 to 4.later i will make thread count configurable via command-line flag
     std::vector<std::thread> threads;
     std::array<std::string,4> flags={"--t","--i","--nh","--s"};//t=thread,i=case insensitive,nh=highlight off,s=strict search
-
-    //handles argument error
-    if (argc<4){    //minimum 4 arguments =program name + pattern(s) + --f + file(s)
-        std::lock_guard<std::mutex> lock(cerr_mutex);//lock cerr
-        std::cerr<<"pattern and filename in proper format must be provided.Usage: "<<argv[0]<<"<pattern(s)> --f <filename(s)>"<<std::endl;
-        return 1;
-    }
-
     //collects patterns and files name in respective container
     bool after_f=false;
     bool outside_file_scope=false;
@@ -180,22 +161,15 @@ int main(int argc,char* argv[]){
         }
     }
     //checks if atleast one pattern and one file is provided
-    if (files.empty()){
-        std::cerr<<"yeah"<<std::endl;   //for debugging
-    }
     if (pattern_queue.empty() ||files.empty()){
-        std::cerr<<"Error.Minimum one pattern and one valid file is required."<<std::endl;
+        std::cerr<<"Error.Minimum one pattern and one valid file is required.Usage:"<<argv[0]<<"<pattern(s)> --f <filename(s)>"<<std::endl;
         return 1;
     }
     //number of threads is decided by cpu core unless user provides it manually through --t flag.
     //if user doesn't set --t manually then maximum thread created is 4.mimimum 1.totally depends on pattern_queue size and cpu core.
     //when user set thread by --t maximum thread is 10 to prevent overloading.
     //no matter what thread number never exceeds patten=rn_queue size to prevent infinte thread creating and returning loop(crashed my program.took 1 hour to detect).
-    if(is_thread_set_by_user){
-        num_threads=std::min(std::min(10u,thread_set_by_user), static_cast<unsigned int>(pattern_queue.size()));
-    }else{
-        num_threads=std::min(MAX_THREADS, static_cast<unsigned int>(pattern_queue.size()));
-    }
+    num_threads=(is_thread_set_by_user?(std::min(std::min(10u,thread_set_by_user), static_cast<unsigned int>(pattern_queue.size()))):(std::min(MAX_THREADS, static_cast<unsigned int>(pattern_queue.size()))));
     //below block creates threads according to num_threads that calls "collecting_patterns" func
     //and adds that thread inside threads vector
     for (size_t i=0;i<num_threads;i++){
