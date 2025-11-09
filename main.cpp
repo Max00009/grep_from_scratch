@@ -1,4 +1,4 @@
-//reminder:codecrafters list,video,regex,less,pipe,adjustable size,is_atty,less
+//reminder:pipe,adjustable size,is_atty
 #include <iostream>
 #include <fstream> //to read from file
 #include <string> 
@@ -7,9 +7,11 @@
 #include <mutex> //for mutual exclusion to prevent race condition
 #include <queue>
 #include <thread>
+#include <filesystem>//for std::filesystem::remove()
 #include <array>
 #include <cctype> //for std::tolower which is needed for for case insensitive search
 #include <regex>
+#include <unistd.h>//for isatty()
 #define RED "\033[31m"
 #define RESET "\033[0m"
 #define YELLOW "\033[33m"
@@ -23,7 +25,27 @@ bool case_insensitive=false;
 bool highlight=true;
 bool strict_search=false;
 bool less=false;
+bool is_pipe_output=!isatty(STDOUT_FILENO);
+bool is_pipe_input=!isatty(STDIN_FILENO);
+bool is_pipe_err=!isatty(STDERR_FILENO);
 
+void add_virtual_file_from_piped_input(std::vector<std::string>& files){
+    //first we will create a buffer and read line by line from std::cin and store that inside that buffer
+    std::ostringstream buffer;
+    std::string line;
+    while(std::getline(std::cin,line)){
+        buffer<<line<<"\n";
+    }
+    //create a temp file
+    std::string temp_file="piped_input_file";
+    //we will create a stream that is connected to our file i.e. create this file on disk in the current directory.
+    std::ofstream out(temp_file);
+    //now we can pour our buffer into temp_file through stream "out"
+    out<<buffer.str();
+    out.close();
+    //now push this virtual file to files vector
+    files.push_back(temp_file);
+}
 std::string highlight_pattern(std::string& line,std::regex& pattern){
     std::string highlighted_line;
     std::string::const_iterator curr_pos=line.cbegin();
@@ -124,7 +146,8 @@ int main(int argc,char* argv[]){
     std::array<std::string,5> flags={"--t","--i","--nh","--s","--l"};//t=thread,i=case insensitive,nh=highlight off,s=strict search
     //collects patterns and files name in respective container
     bool after_f=false;
-    bool outside_file_scope=false;
+    bool outside_file_scope=false;        
+    if (is_pipe_input) add_virtual_file_from_piped_input(files);
     for (size_t i=1;i<argc;i++){
         std::string arg=argv[i];
         if(arg=="--f"){
@@ -163,9 +186,12 @@ int main(int argc,char* argv[]){
         }
     }
     //checks if atleast one pattern and one file is provided
-    if (pattern_queue.empty() ||files.empty()){
+    if (pattern_queue.empty() || files.empty()){
         std::cerr<<"Error.Minimum one pattern and one valid file is required.Usage:"<<argv[0]<<"<pattern(s)> --f <filename(s)>"<<std::endl;
         return 1;
+    }
+    for (const auto& file:files){
+        std::cout<<file<<std::endl;
     }
     //number of threads is decided by cpu core unless user provides it manually through --t flag.
     //if user doesn't set --t manually then maximum thread created is 4.mimimum 1.totally depends on pattern_queue size and cpu core.
@@ -178,5 +204,6 @@ int main(int argc,char* argv[]){
         threads.emplace_back(collecting_pattern_from_queue,std::ref(pattern_queue),std::cref(files));
     }
     for(auto& t:threads) t.join();
+    if (is_pipe_input) std::filesystem::remove("piped_input_file");//clean that virtual file 
     return 0;
 }
