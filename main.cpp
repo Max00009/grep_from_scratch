@@ -1,4 +1,4 @@
-//reminder:codecrafters list,video,regex,less,pipe,adjustable size
+//reminder:codecrafters list,video,regex,less,pipe,adjustable size,is_atty,less
 #include <iostream>
 #include <fstream> //to read from file
 #include <string> 
@@ -22,6 +22,7 @@ std::mutex pattern_queue_mutex;
 bool case_insensitive=false;
 bool highlight=true;
 bool strict_search=false;
+bool less=false;
 
 std::string highlight_pattern(std::string& line,std::regex& pattern){
     std::string highlighted_line;
@@ -78,7 +79,7 @@ void search_pattern(std::string& pattern,const std::vector<std::string>& files){
                 }
             }
             if (line_has_match){
-                if (!file_name_header_alredy_added){
+                if ((!file_name_header_alredy_added) && (!less)){
                     result.append("┌───────────────────────────────┐\n");
                     result.append("│ File: " + file+"\n");
                     result.append("└───────────────────────────────┘\n");
@@ -88,7 +89,7 @@ void search_pattern(std::string& pattern,const std::vector<std::string>& files){
                 result.append("   → " +line+"\n");
             }
         }
-        if (match_in_curr_file!=0) result.append("\n("+pattern+ " appeared " + std::to_string(match_in_curr_file) + " times in " + file +")\n\n");
+        if ((match_in_curr_file!=0) && (!less)) result.append("\n("+pattern+ " appeared " + std::to_string(match_in_curr_file) + " times in " + file +")\n\n");
         opened_file.close();
     }
     std::lock_guard<std::mutex> lock(cout_mutex);
@@ -120,7 +121,7 @@ int main(int argc,char* argv[]){
     unsigned int num_threads;
     const unsigned int MAX_THREADS=std::min(4u, std::max(1u, std::thread::hardware_concurrency()));//thread count depends on cpu core but within 1 to 4.later i will make thread count configurable via command-line flag
     std::vector<std::thread> threads;
-    std::array<std::string,4> flags={"--t","--i","--nh","--s"};//t=thread,i=case insensitive,nh=highlight off,s=strict search
+    std::array<std::string,5> flags={"--t","--i","--nh","--s","--l"};//t=thread,i=case insensitive,nh=highlight off,s=strict search
     //collects patterns and files name in respective container
     bool after_f=false;
     bool outside_file_scope=false;
@@ -157,6 +158,7 @@ int main(int argc,char* argv[]){
                 if (arg=="--i") case_insensitive=true ;
                 if (arg=="--nh") highlight=false;
                 if (arg=="--s") strict_search=true;
+                if (arg=="--l") less=true;
             }
         }
     }
