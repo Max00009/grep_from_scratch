@@ -1,4 +1,4 @@
-//reminder:pipe,adjustable size,is_atty
+//reminder:adjustable size
 #include <iostream>
 #include <fstream> //to read from file
 #include <string> 
@@ -27,7 +27,7 @@ bool strict_search=false;
 bool less=false;
 bool is_pipe_output=!isatty(STDOUT_FILENO);
 bool is_pipe_input=!isatty(STDIN_FILENO);
-bool is_pipe_err=!isatty(STDERR_FILENO);
+// bool is_pipe_err=!isatty(STDERR_FILENO);
 
 void add_virtual_file_from_piped_input(std::vector<std::string>& files){
     //first we will create a buffer and read line by line from std::cin and store that inside that buffer
@@ -107,7 +107,7 @@ void search_pattern(std::string& pattern,const std::vector<std::string>& files){
                     result.append("└───────────────────────────────┘\n");
                     file_name_header_alredy_added=true;
                 }
-                if (highlight) line=highlight_pattern(line,regex_pattern);//by default highlight always on unless user provides --nh flag
+                if (highlight && (!is_pipe_output)) line=highlight_pattern(line,regex_pattern);//by default highlight always on unless user provides --nh flag
                 result.append("   → " +line+"\n");
             }
         }
@@ -115,10 +115,17 @@ void search_pattern(std::string& pattern,const std::vector<std::string>& files){
         opened_file.close();
     }
     std::lock_guard<std::mutex> lock(cout_mutex);
-    std::cout<<RED<< "\n==========================================\n";
-    std::cout << "🔍 Searching for pattern: \"" << pattern << "\"\n";
-    std::cout << "==========================================\n"<<RESET<<std::endl;
-    std::cout<<YELLOW<<"\nTOTAL COUNT OF "<<pattern<<"="<<match_for_curr_pattern<<"\n"<<RESET<<std::endl;
+    if(!is_pipe_output){
+        std::cout<<RED<< "\n==========================================\n";
+        std::cout << "🔍 Searching for pattern: \"" << pattern << "\"\n";
+        std::cout << "==========================================\n"<<RESET<<std::endl;
+        std::cout<<YELLOW<<"\nTOTAL COUNT OF "<<pattern<<"="<<match_for_curr_pattern<<"\n"<<RESET<<std::endl;
+    }else{
+        std::cout<<"\n==========================================\n";
+        std::cout << "🔍 Searching for pattern: \"" << pattern << "\"\n";
+        std::cout << "==========================================\n"<<std::endl;
+        std::cout<<"\nTOTAL COUNT OF "<<pattern<<"="<<match_for_curr_pattern<<"\n"<<std::endl;
+    }
     std::cout<<result<<std::endl;
 }
 //this function is a critical section.Each thread is assign to one pattern
@@ -189,9 +196,6 @@ int main(int argc,char* argv[]){
     if (pattern_queue.empty() || files.empty()){
         std::cerr<<"Error.Minimum one pattern and one valid file is required.Usage:"<<argv[0]<<"<pattern(s)> --f <filename(s)>"<<std::endl;
         return 1;
-    }
-    for (const auto& file:files){
-        std::cout<<file<<std::endl;
     }
     //number of threads is decided by cpu core unless user provides it manually through --t flag.
     //if user doesn't set --t manually then maximum thread created is 4.mimimum 1.totally depends on pattern_queue size and cpu core.
