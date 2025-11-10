@@ -9,7 +9,6 @@
 #include <thread>
 #include <filesystem>//for std::filesystem::remove()
 #include <array>
-#include <cctype> //for std::tolower which is needed for for case insensitive search
 #include <regex>
 #include <unistd.h>//for isatty()
 #define RED "\033[31m"
@@ -115,17 +114,14 @@ void search_pattern(std::string& pattern,const std::vector<std::string>& files){
         opened_file.close();
     }
     std::lock_guard<std::mutex> lock(cout_mutex);
-    if(!is_pipe_output){
-        std::cout<<RED<< "\n==========================================\n";
-        std::cout << "🔍 Searching for pattern: \"" << pattern << "\"\n";
-        std::cout << "==========================================\n"<<RESET<<std::endl;
-        std::cout<<YELLOW<<"\nTOTAL COUNT OF "<<pattern<<"="<<match_for_curr_pattern<<"\n"<<RESET<<std::endl;
-    }else{
-        std::cout<<"\n==========================================\n";
-        std::cout << "🔍 Searching for pattern: \"" << pattern << "\"\n";
-        std::cout << "==========================================\n"<<std::endl;
-        std::cout<<"\nTOTAL COUNT OF "<<pattern<<"="<<match_for_curr_pattern<<"\n"<<std::endl;
-    }
+    if(!is_pipe_output) std::cout<<RED;
+    std::cout<< "\n==========================================\n";
+    std::cout << "🔍 Searching for pattern: \"" << pattern << "\"\n";
+    std::cout << "==========================================\n";
+    if(!is_pipe_output) std::cout<<RESET;
+    if(!is_pipe_output) std::cout<<YELLOW;
+    std::cout<<"\nTOTAL COUNT OF "<<pattern<<"="<<match_for_curr_pattern<<"\n\n";
+    if(!is_pipe_output) std::cout<<RESET;
     std::cout<<result<<std::endl;
 }
 //this function is a critical section.Each thread is assign to one pattern
